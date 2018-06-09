@@ -2,14 +2,13 @@ import asyncio
 import json
 from datetime import datetime
 
+import flatbuffers
 import websockets
-
 from rlbot.botmanager.bot_helper_process import BotHelperProcess
 from rlbot.botmanager.bot_manager import GAME_TICK_PACKET_REFRESHES_PER_SECOND
-from rlbot.pylibs import flatbuffers
+from rlbot.messages.flat import GameTickPacket, ControllerState, PlayerInput
 from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.structures.game_interface import GameInterface
-from rlbot.messages.flat import GameTickPacket, ControllerState, PlayerInput
 
 PORT = 42008
 
