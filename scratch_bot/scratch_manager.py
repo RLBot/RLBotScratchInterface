@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import flatbuffers
 import websockets
@@ -11,6 +11,7 @@ from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.structures.game_interface import GameInterface
 
 PORT = 42008
+MAX_AGENT_CALL_PERIOD = timedelta(seconds=1.0)
 
 
 class ScratchManager(BotHelperProcess):
@@ -36,25 +37,33 @@ class ScratchManager(BotHelperProcess):
 
         self.game_interface.load_interface()
 
-        asyncio.get_event_loop().run_until_complete(websockets.serve(self.data_exchange, 'localhost', PORT))
+        asyncio.get_event_loop().run_until_complete(websockets.serve(self.data_exchange, port=PORT))
         asyncio.get_event_loop().run_until_complete(self.game_loop())
 
     async def game_loop(self):
 
         last_tick_game_time = None  # What the tick time of the last observed tick was
+        last_call_real_time = datetime.now()  # When we last called the Agent
 
         # Run until main process tells to stop
         while not self.quit_event.is_set():
             before = datetime.now()
 
             game_tick_flat_binary = self.game_interface.get_live_data_flat_binary()
+            if game_tick_flat_binary is None:
+                continue
+
             game_tick_flat = GameTickPacket.GameTickPacket.GetRootAsGameTickPacket(game_tick_flat_binary, 0)
 
             # Run the Agent only if the gameInfo has updated.
             tick_game_time = self.get_game_time(game_tick_flat)
+            worth_communicating = tick_game_time != last_tick_game_time or \
+                                  datetime.now() - last_call_real_time >= MAX_AGENT_CALL_PERIOD
+
             ball = game_tick_flat.Ball()
-            if tick_game_time != last_tick_game_time and ball is not None:
+            if ball is not None and worth_communicating:
                 last_tick_game_time = tick_game_time
+                last_call_real_time = datetime.now()
 
                 players = []
                 for i in range(game_tick_flat.PlayersLength()):
