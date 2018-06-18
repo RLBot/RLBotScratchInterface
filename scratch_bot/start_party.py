@@ -1,8 +1,8 @@
 import pyvjoy
 import time
 
-print('You have 3 seconds to tab into the game...')
-time.sleep(3)
+print('You have 10 seconds to tab into the game...')
+time.sleep(10)
 
 
 def resetPlayer(p):
