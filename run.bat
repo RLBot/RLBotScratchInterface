@@ -3,6 +3,8 @@
 @rem Change the working directory to the location of this file so that relative paths will work
 cd /D "%~dp0"
 
+call .\RefreshEnv.cmd
+
 setlocal EnableDelayedExpansion
 
 @rem Run the is_safe_to_upgrade function and save the output to a temp file.
@@ -25,3 +27,5 @@ IF "!is_safe_to_upgrade!"=="True" (
 )
 
 python -c "from rlbot import runner; runner.main();"
+
+pause
