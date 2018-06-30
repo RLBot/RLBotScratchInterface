@@ -20,17 +20,16 @@ class ScratchManager(BotHelperProcess):
         super().__init__(agent_metadata_queue, quit_event)
         self.logger = get_logger('scratch_mgr')
         self.game_interface = GameInterface(self.logger)
-        self.current_socket = None
+        self.current_sockets = set()
 
     async def data_exchange(self, websocket, path):
         async for message in websocket:
-
             controller_states = json.loads(message)
 
             for key, scratch_state in controller_states.items():
                 self.game_interface.update_player_input_flat(self.convert_to_flatbuffer(scratch_state, int(key)))
 
-            self.current_socket = websocket
+            self.current_sockets.add(websocket)
 
     def start(self):
         self.logger.info("Starting scratch manager")
@@ -71,7 +70,6 @@ class ScratchManager(BotHelperProcess):
 
                 ball_phys = ball.Physics()
 
-                global central_packet
                 central_packet = {
                     'ball': {
                         'location': v3_to_dict(ball_phys.Location()),
@@ -80,13 +78,15 @@ class ScratchManager(BotHelperProcess):
                     'players': players
                 }
 
-                if self.current_socket is not None and self.current_socket.open:
-                    packet_json = json.dumps(central_packet)
-                    await self.current_socket.send(packet_json)
+                packet_json = json.dumps(central_packet)
+
+                self.current_sockets = {s for s in self.current_sockets if s.open}
+                for socket in self.current_sockets:
+                    await socket.send(packet_json)
 
             after = datetime.now()
 
-            sleep_secs = 1 / GAME_TICK_PACKET_REFRESHES_PER_SECOND - (after - before).seconds
+            sleep_secs = 1 / 60 - (after - before).seconds
             if sleep_secs > 0:
                 await asyncio.sleep(sleep_secs)
 

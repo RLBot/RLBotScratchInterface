@@ -4,3 +4,5 @@
 cd /D "%~dp0"
 
 python -c "from scratch_bot import start_party"
+
+pause
