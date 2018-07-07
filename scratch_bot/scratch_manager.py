@@ -30,6 +30,7 @@ class ScratchManager(BotHelperProcess):
                 self.game_interface.update_player_input_flat(self.convert_to_flatbuffer(scratch_state, int(key)))
 
             self.current_sockets.add(websocket)
+            await asyncio.sleep(0.001) # Probably unnecessary
 
     def start(self):
         self.logger.info("Starting scratch manager")
@@ -80,9 +81,11 @@ class ScratchManager(BotHelperProcess):
 
                 packet_json = json.dumps(central_packet)
 
-                self.current_sockets = {s for s in self.current_sockets if s.open}
-                for socket in self.current_sockets:
+                filtered_sockets = {s for s in self.current_sockets if s.open}
+                for socket in filtered_sockets:
                     await socket.send(packet_json)
+
+                self.current_sockets = filtered_sockets
 
             after = datetime.now()
 
