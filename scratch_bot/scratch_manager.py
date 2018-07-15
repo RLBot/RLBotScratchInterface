@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 import flatbuffers
 import websockets
 from rlbot.botmanager.bot_helper_process import BotHelperProcess
-from rlbot.botmanager.bot_manager import GAME_TICK_PACKET_REFRESHES_PER_SECOND
-from rlbot.messages.flat import GameTickPacket, ControllerState, PlayerInput
+from rlbot.messages.flat import GameTickPacket, ControllerState, PlayerInput, TinyPacket, TinyPlayer, Vector3, Rotator, \
+    TinyBall
 from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.structures.game_interface import GameInterface
 
@@ -30,7 +30,6 @@ class ScratchManager(BotHelperProcess):
                 self.game_interface.update_player_input_flat(self.convert_to_flatbuffer(scratch_state, int(key)))
 
             self.current_sockets.add(websocket)
-            await asyncio.sleep(0.001) # Probably unnecessary
 
     def start(self):
         self.logger.info("Starting scratch manager")
@@ -65,31 +64,37 @@ class ScratchManager(BotHelperProcess):
                 last_tick_game_time = tick_game_time
                 last_call_real_time = datetime.now()
 
-                players = []
+                tiny_player_offsets = []
+                builder = flatbuffers.Builder(0)
+
                 for i in range(game_tick_flat.PlayersLength()):
-                    players.append(player_to_dict(game_tick_flat.Players(i)))
+                    tiny_player_offsets.append(copy_player(game_tick_flat.Players(i), builder))
 
-                ball_phys = ball.Physics()
+                TinyPacket.TinyPacketStartPlayersVector(builder, game_tick_flat.PlayersLength())
+                for i in reversed(range(0, len(tiny_player_offsets))):
+                    builder.PrependUOffsetTRelative(tiny_player_offsets[i])
+                players_offset = builder.EndVector(len(tiny_player_offsets))
 
-                central_packet = {
-                    'ball': {
-                        'location': v3_to_dict(ball_phys.Location()),
-                        'velocity': v3_to_dict(ball_phys.Velocity())
-                    },
-                    'players': players
-                }
+                ballOffset = copy_ball(ball, builder)
 
-                packet_json = json.dumps(central_packet)
+                TinyPacket.TinyPacketStart(builder)
+                TinyPacket.TinyPacketAddPlayers(builder, players_offset)
+                TinyPacket.TinyPacketAddBall(builder, ballOffset)
+                packet_offset = TinyPacket.TinyPacketEnd(builder)
+
+                builder.Finish(packet_offset)
+                buffer = bytes(builder.Output())
 
                 filtered_sockets = {s for s in self.current_sockets if s.open}
                 for socket in filtered_sockets:
-                    await socket.send(packet_json)
+                    await socket.send(buffer)
 
                 self.current_sockets = filtered_sockets
 
             after = datetime.now()
+            duration = (after - before).total_seconds()
 
-            sleep_secs = 1 / 60 - (after - before).seconds
+            sleep_secs = 1 / 60 - duration
             if sleep_secs > 0:
                 await asyncio.sleep(sleep_secs)
 
@@ -121,26 +126,25 @@ class ScratchManager(BotHelperProcess):
         builder.Finish(player_input)
         return builder
 
+def copy_v3(v3, builder):
+    return Vector3.CreateVector3(builder, v3.X(), v3.Y(), v3.Z())
 
-def player_to_dict(car):
-    return {
-        'location': v3_to_dict(car.Physics().Location()),
-        'velocity': v3_to_dict(car.Physics().Velocity()),
-        'rotation': rot_to_dict(car.Physics().Rotation())
-    }
+def copy_rot(rot, builder):
+    return Rotator.CreateRotator(builder, rot.Pitch(), rot.Yaw(), rot.Roll())
+
+def copy_player(player, builder):
+    TinyPlayer.TinyPlayerStart(builder)
+    TinyPlayer.TinyPlayerAddLocation(builder, copy_v3(player.Physics().Location(), builder))
+    TinyPlayer.TinyPlayerAddVelocity(builder, copy_v3(player.Physics().Velocity(), builder))
+    TinyPlayer.TinyPlayerAddRotation(builder, copy_rot(player.Physics().Rotation(), builder))
+    TinyPlayer.TinyPlayerAddTeam(builder, player.Team())
+    return TinyPlayer.TinyPlayerEnd(builder)
+
+def copy_ball(ball, builder):
+    phys = ball.Physics()
+    TinyBall.TinyBallStart(builder)
+    TinyBall.TinyBallAddLocation(builder, copy_v3(phys.Location(), builder))
+    TinyBall.TinyBallAddVelocity(builder, copy_v3(phys.Velocity(), builder))
+    return TinyBall.TinyBallEnd(builder)
 
 
-def v3_to_dict(v3):
-    return {
-        'x': v3.X(),
-        'y': v3.Y(),
-        'z': v3.Z()
-    }
-
-
-def rot_to_dict(rot):
-    return {
-        'pitch': rot.Pitch(),
-        'yaw': rot.Yaw(),
-        'roll': rot.Roll()
-    }
