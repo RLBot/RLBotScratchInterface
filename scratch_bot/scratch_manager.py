@@ -138,6 +138,7 @@ def copy_player(player, builder):
     TinyPlayer.TinyPlayerAddVelocity(builder, copy_v3(player.Physics().Velocity(), builder))
     TinyPlayer.TinyPlayerAddRotation(builder, copy_rot(player.Physics().Rotation(), builder))
     TinyPlayer.TinyPlayerAddTeam(builder, player.Team())
+    TinyPlayer.TinyPlayerAddBoost(builder, player.Boost())
     return TinyPlayer.TinyPlayerEnd(builder)
 
 def copy_ball(ball, builder):
