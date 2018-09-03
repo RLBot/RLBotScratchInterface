@@ -1,6 +1,6 @@
 # The main rlbot framework
-# You will automatically get updates for all versions starting with "0.0.".
-rlbot==0.0.*
+# You will automatically get updates for all versions starting with "1.".
+rlbot==1.*
 
 # Used to allow python to communicate with the browser that's running scratch
 websockets
