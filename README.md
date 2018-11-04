@@ -1,6 +1,10 @@
 # RLBotScratchInterface
 Allows the Scratch programming language to control RLBot.
 
+## Video Guide
+
+https://youtu.be/3e-n52_Tb6k
+
 ## Split Screen Instructions
 
 If you want to show multiple cars in a split screen view, follow these instructions.
@@ -8,6 +12,7 @@ If you want to show multiple cars in a split screen view, follow these instructi
 1. Make sure you've installed [Python 3.6 64 bit](https://www.python.org/ftp/python/3.6.5/python-3.6.5-amd64.exe). During installation:
    - Select "Add Python to PATH"
    - Don't opt out of pip
+1. Download this repository
 1. Install [vJoy](http://vjoystick.sourceforge.net)
 1. Find the vJoy installation directory and copy x64/vJoyInterface.dll
 into the pyvjoy folder located here.
