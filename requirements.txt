@@ -4,3 +4,6 @@ rlbot==1.*
 
 # Used to allow python to communicate with the browser that's running scratch
 websockets
+
+# This will cause pip to auto-upgrade and stop scaring people with warning messages
+pip
