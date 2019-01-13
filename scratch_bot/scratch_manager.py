@@ -53,19 +53,15 @@ class ScratchManager(BotHelperProcess):
 
     def try_receive_agent_metadata(self):
         """
-        Checks whether any of the started bots have posted their AgentMetadata
-        yet. If so, we put them on the agent_metadata_map such that we can
-        kill their process later when we shut_down(kill_agent_process_ids=True)
-
-        Returns how from how many bots we recieved metadata from.
+        As agents start up, they will dump their configuration into the metadata_queue.
+        Read from it to learn about all the bots intending to use this scratch manager.
         """
-        num_recieved = 0
         while True:  # will exit on queue.Empty
             try:
                 single_agent_metadata: AgentMetadata = self.metadata_queue.get(timeout=0.1)
                 self.running_indices.add(single_agent_metadata.index)
             except queue.Empty:
-                return num_recieved
+                return
             except Exception as ex:
                 self.logger.error(ex)
 
