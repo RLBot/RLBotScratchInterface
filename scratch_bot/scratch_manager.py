@@ -1,42 +1,106 @@
 import asyncio
 import json
+import os
+import queue
+import time
 from datetime import datetime, timedelta
 
 import flatbuffers
 import websockets
+from rlbot.botmanager.agent_metadata import AgentMetadata
 from rlbot.botmanager.bot_helper_process import BotHelperProcess
 from rlbot.messages.flat import GameTickPacket, ControllerState, PlayerInput, TinyPacket, TinyPlayer, Vector3, Rotator, \
     TinyBall
 from rlbot.utils.logging_utils import get_logger
 from rlbot.utils.structures.game_interface import GameInterface
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.wait import WebDriverWait
 
-PORT = 42008
 MAX_AGENT_CALL_PERIOD = timedelta(seconds=1.0)
+
+
+def index_to_player_string(idx):
+    return str(idx + 1)
 
 
 class ScratchManager(BotHelperProcess):
 
-    def __init__(self, agent_metadata_queue, quit_event):
-        super().__init__(agent_metadata_queue, quit_event)
+    def __init__(self, agent_metadata_queue, quit_event, options):
+        super().__init__(agent_metadata_queue, quit_event, options)
         self.logger = get_logger('scratch_mgr')
         self.game_interface = GameInterface(self.logger)
         self.current_sockets = set()
+        self.running_indices = set()
+        self.port: int = options['port']
+        self.sb3_file = options['sb3-file']
+        self.has_received_input = False
 
     async def data_exchange(self, websocket, path):
         async for message in websocket:
             controller_states = json.loads(message)
+
+            if not self.has_received_input:
+                self.has_received_input = True
+                self.logger.info(f"Just got first input from Scratch {self.sb3_file} {self.port}")
 
             for key, scratch_state in controller_states.items():
                 self.game_interface.update_player_input_flat(self.convert_to_flatbuffer(scratch_state, int(key)))
 
             self.current_sockets.add(websocket)
 
+    def try_receive_agent_metadata(self):
+        """
+        Checks whether any of the started bots have posted their AgentMetadata
+        yet. If so, we put them on the agent_metadata_map such that we can
+        kill their process later when we shut_down(kill_agent_process_ids=True)
+
+        Returns how from how many bots we recieved metadata from.
+        """
+        num_recieved = 0
+        while True:  # will exit on queue.Empty
+            try:
+                single_agent_metadata: AgentMetadata = self.metadata_queue.get(timeout=0.1)
+                self.running_indices.add(single_agent_metadata.index)
+            except queue.Empty:
+                return num_recieved
+            except Exception as ex:
+                self.logger.error(ex)
+
     def start(self):
         self.logger.info("Starting scratch manager")
 
         self.game_interface.load_interface()
 
-        asyncio.get_event_loop().run_until_complete(websockets.serve(self.data_exchange, port=PORT))
+        # Wait a moment for all agents to have a chance to start up and send metadata
+        time.sleep(1)
+        self.try_receive_agent_metadata()
+
+        self.logger.info(self.running_indices)
+
+        if self.options['spawn_browser']:
+            options = Options()
+            options.headless = self.options['headless']
+            current_folder = os.path.dirname(os.path.realpath(__file__))
+            driver_path = os.path.join(current_folder, "chromedriver.exe")
+            driver = webdriver.Chrome(driver_path, chrome_options=options)
+
+            players_string = ",".join(map(index_to_player_string, self.running_indices))
+            driver.get(f"http://scratch.rlbot.org?host=localhost:{str(self.port)}&players={players_string}")
+
+            if self.sb3_file is not None:
+                element = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.ID, "sb3-selenium-uploader"))
+                )
+                # TODO: This sleep is designed to avoid a race condition. Instead of sleeping,
+                # Consider passing a url param to make scratch not load the default project.
+                # Hopefully that will make the race go away.
+                time.sleep(5)
+                element.send_keys(self.sb3_file)
+
+        asyncio.get_event_loop().run_until_complete(websockets.serve(self.data_exchange, port=self.port))
         asyncio.get_event_loop().run_until_complete(self.game_loop())
 
     async def game_loop(self):
@@ -126,11 +190,14 @@ class ScratchManager(BotHelperProcess):
         builder.Finish(player_input)
         return builder
 
+
 def copy_v3(v3, builder):
     return Vector3.CreateVector3(builder, v3.X(), v3.Y(), v3.Z())
 
+
 def copy_rot(rot, builder):
     return Rotator.CreateRotator(builder, rot.Pitch(), rot.Yaw(), rot.Roll())
+
 
 def copy_player(player, builder):
     TinyPlayer.TinyPlayerStart(builder)
@@ -141,11 +208,10 @@ def copy_player(player, builder):
     TinyPlayer.TinyPlayerAddBoost(builder, player.Boost())
     return TinyPlayer.TinyPlayerEnd(builder)
 
+
 def copy_ball(ball, builder):
     phys = ball.Physics()
     TinyBall.TinyBallStart(builder)
     TinyBall.TinyBallAddLocation(builder, copy_v3(phys.Location(), builder))
     TinyBall.TinyBallAddVelocity(builder, copy_v3(phys.Velocity(), builder))
     return TinyBall.TinyBallEnd(builder)
-
-
