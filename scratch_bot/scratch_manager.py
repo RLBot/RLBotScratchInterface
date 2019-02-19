@@ -79,6 +79,10 @@ class ScratchManager(BotHelperProcess):
         if self.options['spawn_browser']:
             options = Options()
             options.headless = self.options['headless']
+
+            # This prevents an error message about AudioContext when running in headless mode.
+            options.add_argument("--autoplay-policy=no-user-gesture-required")
+
             current_folder = os.path.dirname(os.path.realpath(__file__))
             driver_path = os.path.join(current_folder, "chromedriver.exe")
             driver = webdriver.Chrome(driver_path, chrome_options=options)
