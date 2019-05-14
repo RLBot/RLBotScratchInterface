@@ -8,5 +8,8 @@ websockets
 # Used to automatically launch web browsers and run the scratch code on them
 selenium
 
+# Provides an up-to-date version of chromedriver.exe to assist selenium
+webdriver_manager
+
 # This will cause pip to auto-upgrade and stop scaring people with warning messages
 pip
