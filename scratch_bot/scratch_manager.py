@@ -188,6 +188,9 @@ class ScratchManager(BotHelperProcess):
         ControllerState.ControllerStateAddJump(builder, json_state['jump'])
         ControllerState.ControllerStateAddBoost(builder, json_state['boost'])
         ControllerState.ControllerStateAddHandbrake(builder, json_state['handbrake'])
+
+        # This may throw a KeyError for anyone using old cached javascript. You should hard-refresh scratch.rlbot.org.
+        ControllerState.ControllerStateAddUseItem(builder, json_state['useItem'])
         controller_state = ControllerState.ControllerStateEnd(builder)
 
         PlayerInput.PlayerInputStart(builder)
