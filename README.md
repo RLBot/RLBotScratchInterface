@@ -4,7 +4,6 @@ Allows the Scratch programming language to control RLBot.
 ## Quick Start
 
 - Follow this guide to install RLBot: https://youtu.be/YJ69QZ-EX7k
-https://youtu.be/3e-n52_Tb6k
 - When we choose python in the video, choose Scratch instead.
 - Get some tips here: https://youtu.be/c6rsBEqx22c
 
